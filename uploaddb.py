@@ -4,18 +4,16 @@ import pyodbc
 import requests as req
 import re
 from pprint import pprint
-
-def getGroupsAndTeachers(groups, teachers):
-    _url = 'https://idm.dvfu.ru/component/calendar/calendar/'
-    data = re.findall(r'<option value="(.+?)">(.+?)</option>', req.get(_url).text)
-    for i, g in enumerate(data, start=1):
-        if re.search(r'С8502', str(g)):
-            teachers = data[i:]
-            groups = data [:i]
-            break
+from datetime import datetime, timedelta
 
 groups = teachers = []
-getGroupsAndTeachers(groups, teachers)
+_url = 'https://idm.dvfu.ru/component/calendar/calendar/'
+data = re.findall(r'<option value="(.+?)">(.+?)</option>', req.get(_url).text)
+for i, g in enumerate(data, start=1):
+    if re.search(r'С8502', str(g)):
+        teachers = data[i:]
+        groups = data[:i]
+        break
 
 def getDiscipline():
     disc = []
@@ -28,7 +26,7 @@ def getDiscipline():
 def uploadDiscipline():
     disc = getDiscipline()
     for d in disc:
-        cursor.execute("INSERT INTO Discipline (name) VALUES ('" + d + "')")
+        cursor.execute("INSERT INTO Discipline VALUES ('" + d + "')")
         
 def getPlace():
     place = []
@@ -41,23 +39,15 @@ def getPlace():
 def uploadPlace():
     place = getPlace()
     for p in place:
-        cursor.execute("INSERT INTO Place (id) VALUES ('" + p + "')")
+        cursor.execute("INSERT INTO Place VALUES ('" + p + "')")
 
 def uploadGroup():     
     for g in groups:
-        cursor.execute("INSERT INTO GroupName (id, name) VALUES ('" + g[0] + "', '" + g[1] + "')")
+        cursor.execute("INSERT INTO GroupName VALUES ('" + g[0] + "', '" + g[1] + "')")
         
 def uploadTeacher():     
     for t in teachers:
-        cursor.execute("INSERT INTO Teacher (id, name) VALUES ('" + t[0] + "', '" + t[1] + "')")
-
-def getDate():
-    date = []
-    for g in groups:
-        data = json.loads(req.get(url.format(g[0])).text)
-        for d in data:   
-            date.append(d['start'][:10])  
-    return sorted(list(set(date)))
+        cursor.execute("INSERT INTO Teacher VALUES ('" + t[0] + "', '" + t[1] + "')")
 
 def getTime():
     start = end = []
@@ -67,6 +57,72 @@ def getTime():
             start.append(d['start'][12:19])  
             end.append(d['end'][12:19])
     return [sorted(list(set(start))), sorted(list(set(end)))]
+
+def uploadTime():
+    time = getTime()
+    for t in time:
+        cursor.execute("INSERT INTO LessonTime VALUES ('" + t[0] + "', " + t[1] + "')")
+
+def getSubgroup():
+    sgroup = []
+    for g in groups:
+        data = json.loads(req.get(url.format(g[0])).text)
+        for d in data:   
+            sgroup.append(d['subgroup'])  
+    return sorted(list(set(sgroup)))
+
+def uploadSubgroup():
+    sgroup = getSubgroup()
+    for sg in sgroup:
+        cursor.execute("INSERT INTO Subgroup VALUES ('" + sg + "')")
+        
+def getNagruzka():
+    nagruzka = []
+    for g in groups:
+        data = json.loads(req.get(url.format(g[0])).text)
+        for d in data:   
+            nagruzka.append(d['nagruzka'])  
+    return sorted(list(set(nagruzka)))
+
+def uploadNagruzka():
+    nagruzka = getNagruzka()
+    for n in nagruzka:
+        cursor.execute("INSERT INTO Nagruzka VALUES ('" + n + "')")
+
+def nWeek(date):  
+    ddate = datetime(int(date[:4]), int(date[5:7]), int(date[8:10]))
+    return ((ddate - datetime(2018, 9, 17)).days // 7) + 1
+
+def getDate():
+    date = []
+    for g in groups:
+        data = json.loads(req.get(url.format(g[0])).text)
+        for d in data:   
+            date.append(d['start'][:10]) 
+    return sorted(list(set(date)))
+
+def uploadDate():
+    date = getDate()
+    for d in date:
+        cursor.execute("INSERT INTO LessonDate VALUES ('" + d + "', " + str(nWeek(d)) + ")")
+        
+def uploadPeriod():
+    for g in groups:
+        data = json.loads(req.get(url.format(g[0])).text)
+        for d in data:       
+            cursor.execute("INSERT INTO Period VALUES (" + d['id'] + ", " +\
+                                                       "(select id from LessonTime where start_time = '" +\
+                                                       d['start'][12:19] + "'), " +\
+                                                       "(select id from Discipline where name = '"  +\
+                                                       d['discipline'] + "'), '" + g[0] + "', " +\
+                                                       "(select id from Teacher where name = '" +\
+                                                       (d['teacher']['title']) + "'), '" + d['place'] + "', " +\
+                                                       "(select id from dbo.LessonDate where d = '"  +\
+                                                       d['start'][:10] + "'), " +\
+                                                       "(select id from Nagruzka where name = '"  +\
+                                                       d['nagruzka'] + "'), " +\
+                                                       "(select id from Subgroup where name = '" +\
+                                                       d['subgroup'] + "'))")
 
 url = 'https://idm.dvfu.ru/component/calendar/calendar/getEvents?format=json&filter%5Bgroups%5D={0}'
 server = 'tcp:servername.database.windows.net'
@@ -80,6 +136,7 @@ cursor = cnxn.cursor()
 #data = json.loads(req.get(url.format(str('00000000-0000-0000-14d5-bbc43e40f662'))).text)
 #pprint(data)
 
+#cursor.execute("SELECT * FROM sys.objects WHERE type in (N'U')");
 #cursor.execute("SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Subgroup')") 
 #row = cursor.fetchone()
 #while row:
