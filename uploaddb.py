@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 import json
 import pyodbc
 import requests as req
@@ -30,8 +31,13 @@ def uploadDiscipline():
 
 def uploadPlace():
     place = getValues('place')
+    housing = 'CDEFGLMS'
+    floor = '123456789'
     for p in place:
-        cursor.execute("INSERT INTO Place VALUES ('" + p + "')")
+        if (place[0] == 'S' and place[2] == '-'):
+            cursor.execute("INSERT INTO Place VALUES ('" + p + "', '" + place[0:2] +"')")
+        elif (place[0] in housing and place[1] in floor):
+            cursor.execute("INSERT INTO Place VALUES ('" + p + "', '" + place[0] +"')")
         
 def uploadSubgroup():
     sgroup = getValues('subgroup')
@@ -56,8 +62,8 @@ def getTime():
     for g in groups:
         data = json.loads(req.get(url.format(g[0])).text)
         for d in data:   
-            start.append(d['start'][12:19])  
-            end.append(d['end'][12:19])
+            start.append(d['start'][11:19])  
+            end.append(d['end'][11:19])
     return [sorted(list(set(start))), sorted(list(set(end)))]
 
 def uploadTime():
@@ -68,6 +74,10 @@ def uploadTime():
 def nWeek(date):  
     ddate = datetime(int(date[:4]), int(date[5:7]), int(date[8:10]))
     return ((ddate - datetime(2018, 9, 17)).days // 7) + 1
+
+def weekday(date):  
+    ddate = datetime(int(date[:4]), int(date[5:7]), int(date[8:10]))
+    return ddate.weekday()
 
 def getDate():
     date = []
@@ -80,7 +90,7 @@ def getDate():
 def uploadDate():
     date = getDate()
     for d in date:
-        cursor.execute("INSERT INTO LessonDate VALUES ('" + d + "', " + str(nWeek(d)) + ")")
+        cursor.execute("INSERT INTO LessonDate VALUES ('" + d + "', " + str(nWeek(d)) + ", " str(weekday(d) + 1) + ")")
         
 def uploadPeriod():
     for g in groups:
@@ -88,7 +98,7 @@ def uploadPeriod():
         for d in data:       
             cursor.execute("INSERT INTO Period VALUES (" + d['id'] + ", " +\
                                                        "(select id from LessonTime where start_time = '" +\
-                                                       d['start'][12:19] + "'), " +\
+                                                       d['start'][11:19] + "'), " +\
                                                        "(select id from Discipline where name = '"  +\
                                                        d['discipline'] + "'), '" + g[0] + "', " +\
                                                        "(select id from Teacher where name = '" +\
@@ -99,6 +109,7 @@ def uploadPeriod():
                                                        d['nagruzka'] + "'), " +\
                                                        "(select id from Subgroup where name = '" +\
                                                        d['subgroup'] + "'))")
+            cnxn.commit()
 
 url = 'https://idm.dvfu.ru/component/calendar/calendar/getEvents?format=json&filter%5Bgroups%5D={0}'
 server = 'tcp:servername.database.windows.net'
@@ -122,3 +133,10 @@ cursor = cnxn.cursor()
 cnxn.commit()
 cursor.close()
 cnxn.close()
+
+#пример запроса (свободные аудитории в чётные недели в среду второй парой):
+#select id from Place 
+#where id not in (select id_place from Period 
+#where id_date in (select id from LessonDate where n_week % 2 = '0'
+#and id_weekday = (select id from Weekday where name = 'Среда'))
+#and id_time = (select id from LessonTime where start_time = '10:10:00'))
