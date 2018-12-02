@@ -4,7 +4,7 @@ import pyodbc
 import requests as req
 import re
 from pprint import pprint
-from datetime import datetime, timedelta
+from datetime import datetime
 
 groups = teachers = []
 _url = 'https://idm.dvfu.ru/component/calendar/calendar/'
@@ -15,31 +15,33 @@ for i, g in enumerate(data, start=1):
         groups = data[:i]
         break
 
-def getDiscipline():
-    disc = []
+def getValues(str):
+    res = []
     for g in groups:
         data = json.loads(req.get(url.format(g[0])).text)
         for d in data:   
-            disc.append(d['discipline'])  
-    return sorted(list(set(disc)))
+            res.append(d[str])  
+    return sorted(list(set(res)))
 
 def uploadDiscipline():
-    disc = getDiscipline()
+    disc = getValues('discipline')
     for d in disc:
         cursor.execute("INSERT INTO Discipline VALUES ('" + d + "')")
-        
-def getPlace():
-    place = []
-    for g in groups:
-        data = json.loads(req.get(url.format(g[0])).text)
-        for d in data:   
-            place.append(d['place'])  
-    return sorted(list(set(place)))
 
 def uploadPlace():
-    place = getPlace()
+    place = getValues('place')
     for p in place:
         cursor.execute("INSERT INTO Place VALUES ('" + p + "')")
+        
+def uploadSubgroup():
+    sgroup = getValues('subgroup')
+    for sg in sgroup:
+        cursor.execute("INSERT INTO Subgroup VALUES ('" + sg + "')")
+
+def uploadNagruzka():
+    nagruzka = getValues('nagruzka')
+    for n in nagruzka:
+        cursor.execute("INSERT INTO Nagruzka VALUES ('" + n + "')")
 
 def uploadGroup():     
     for g in groups:
@@ -62,32 +64,6 @@ def uploadTime():
     time = getTime()
     for t in time:
         cursor.execute("INSERT INTO LessonTime VALUES ('" + t[0] + "', " + t[1] + "')")
-
-def getSubgroup():
-    sgroup = []
-    for g in groups:
-        data = json.loads(req.get(url.format(g[0])).text)
-        for d in data:   
-            sgroup.append(d['subgroup'])  
-    return sorted(list(set(sgroup)))
-
-def uploadSubgroup():
-    sgroup = getSubgroup()
-    for sg in sgroup:
-        cursor.execute("INSERT INTO Subgroup VALUES ('" + sg + "')")
-        
-def getNagruzka():
-    nagruzka = []
-    for g in groups:
-        data = json.loads(req.get(url.format(g[0])).text)
-        for d in data:   
-            nagruzka.append(d['nagruzka'])  
-    return sorted(list(set(nagruzka)))
-
-def uploadNagruzka():
-    nagruzka = getNagruzka()
-    for n in nagruzka:
-        cursor.execute("INSERT INTO Nagruzka VALUES ('" + n + "')")
 
 def nWeek(date):  
     ddate = datetime(int(date[:4]), int(date[5:7]), int(date[8:10]))
